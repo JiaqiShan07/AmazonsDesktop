@@ -1,6 +1,7 @@
 """Cached board and antialiased sprites; redraw only after state/layout changes."""
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageTk
+from .move_trail import trail
 
 @lru_cache(maxsize=4)
 def background(size):
@@ -36,14 +37,15 @@ def sprites(cell):
 def render(board, cell, hints, shooting, selected, last):
     size=round(cell*10)
     image=background(size).copy()
+    if last is not None:
+        overlay=trail(size, last)
+        image.paste(overlay, (0, 0), overlay)
     draw=ImageDraw.Draw(image)
     icons=sprites(round(size/10))
     for row in range(10):
         for col in range(10):
             x,y=round(col*size/10),round(row*size/10)
             right,bottom=round((col+1)*size/10),round((row+1)*size/10)
-            if (row,col) in last:
-                draw.rectangle((x+2,y+2,right-2,bottom-2),outline='#a5b6f1',width=2)
             if (row,col)==selected:
                 draw.rectangle((x+2,y+2,right-2,bottom-2),outline='#385fe0',width=3)
             value=board[row][col]

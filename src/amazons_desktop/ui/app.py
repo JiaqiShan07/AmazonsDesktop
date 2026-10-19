@@ -8,6 +8,7 @@ from ..game import Game, encode, decode
 from ..engine import Engine
 from ..clock import Clock, display
 from .board_view import render
+from .move_trail import MOVE_COLOR, SHOT_COLOR
 from ..record import Record, notation
 from .record_dialog import edit_record
 from .theme import BG, PANEL, TEXT, MUTED, ACCENT, FONT, configure
@@ -387,12 +388,24 @@ class App:
         self.oy = (cv.winfo_height()-10*s)/2
         board = self.game.preview(self.source, self.target) if self.target else self.game.board
         hints = self.game.arrows(self.source, self.target) if self.target else self.game.rays(self.source) if self.source else set()
-        last = set(self.game.history[-1]) if self.game.history else set()
+        last = self.game.history[-1] if self.game.history else None
         for i in range(10):
             cv.create_text(self.ox+(i+.5)*s, self.oy-15, text=chr(97+i), fill=MUTED, font=('Segoe UI', 10))
             cv.create_text(self.ox-18, self.oy+(i+.5)*s, text=str(10-i), fill=MUTED, font=('Segoe UI', 10))
         self.board_image = render(board, s, hints, self.target is not None, self.target or self.source, last)
         cv.create_image(self.ox, self.oy, image=self.board_image, anchor='nw')
+        if last is not None:
+            source, target, arrow = [f'{chr(97+c)}{10-r}' for r, c in last]
+            y = self.oy+10*s+16
+            x = self.ox
+            side = '黑方' if len(self.game.history) % 2 else '白方'
+            cv.create_text(x, y, text=f'上手 · {side}', anchor='w', fill=MUTED, font=('Segoe UI', 10))
+            x += 94
+            cv.create_line(x, y, x+25, y, fill=MOVE_COLOR, width=2, arrow='last')
+            cv.create_text(x+33, y, text=f'移动 {source} → {target}', anchor='w', fill=MOVE_COLOR, font=('Segoe UI', 10))
+            x += 204
+            cv.create_line(x, y, x+25, y, fill=SHOT_COLOR, width=2, dash=(4, 3), arrow='last')
+            cv.create_text(x+33, y, text=f'射箭 {arrow}', anchor='w', fill=SHOT_COLOR, font=('Segoe UI', 10))
 
     def tick_clock(self):
         self.clock.update()
