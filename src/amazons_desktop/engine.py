@@ -32,12 +32,7 @@ class Engine:
         self.process.stdin.flush()
 
     def undo(self, turns: int):
-        """SAU extension: undo N complete turns, without starting search.
-
-        Caller must ensure the engine supports this extension and is idle.
-        Engine restores board, side to move and search state, then replies `ready`.
-        A subsequent `go` explicitly starts search for its assigned side.
-        """
+        """Undo completed plies on an idle, extension-capable engine; await ready."""
         self.send(f'undo {turns}')
 
     def go(self):

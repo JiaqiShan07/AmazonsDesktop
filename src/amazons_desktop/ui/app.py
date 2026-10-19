@@ -12,8 +12,6 @@ from ..record import Record, notation
 from .record_dialog import edit_record
 from .theme import BG, PANEL, TEXT, MUTED, ACCENT, FONT, configure
 
-DEFAULT_ENGINES = Path(r'D:\Myfile\code_repos\Amazons\output\submission')
-
 class App:
     def __init__(self, root):
         self.root = root
@@ -26,6 +24,7 @@ class App:
         self.engines = {}
         self.token = 0
         self.paths = {1: '', -1: ''}
+        self.engine_directory = Path.home()
         self.labels = {}
         self.clock_labels = {}
         self.time_control = tk.StringVar(value='900')
@@ -148,7 +147,6 @@ class App:
                 if path:
                     engine = Engine(path, self.events, self.token, color)
                     self.engines[color] = engine
-                    # Load and identify engines now; new is sent only on explicit start.
             self.initializing = set(self.engines)
             if self.engines:
                 self.wait_since = time.monotonic()
@@ -173,8 +171,9 @@ class App:
         self.refresh()
 
     def load_engine(self, color):
-        path = filedialog.askopenfilename(title='选择 SAU 协议引擎（将重置棋局）', initialdir=str(DEFAULT_ENGINES), filetypes=[('Windows 引擎', '*.exe')])
+        path = filedialog.askopenfilename(title='选择 SAU 协议引擎（将重置棋局）', initialdir=str(self.engine_directory), filetypes=[('Windows 引擎', '*.exe'), ('所有文件', '*')])
         if path:
+            self.engine_directory = Path(path).parent
             self.paths[color] = path
             self.labels[color].configure(text=Path(path).parent.name + '\n' + Path(path).name)
             self.new()

@@ -20,7 +20,7 @@ check:
 	$(PYTHON) -m compileall -q src desktop tools tests
 
 build: check
-	$(PYTHON) -m PyInstaller --noconfirm --clean --onefile --windowed --paths "$(abspath src)" --manifest "$(abspath desktop/application.manifest)" --specpath build --workpath build/pyinstaller --distpath dist --name $(APP_NAME) desktop/launcher.py
+	$(PYTHON) tools/build.py
 
 clean:
 	$(PYTHON) tools/clean.py

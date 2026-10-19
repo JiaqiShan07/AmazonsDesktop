@@ -3,3 +3,10 @@ build/
 dist/
 *.spec
 output/
+.venv/
+venv/
+*.egg-info/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
