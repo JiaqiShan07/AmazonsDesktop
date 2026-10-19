@@ -4,6 +4,12 @@
 
 ![本地对局与计时](docs/images/game.png)
 
+## 下载运行
+
+Windows 用户可前往 [Release 下载页面](https://github.com/JiaqiShan07/AmazonsDesktop/releases/tag/202610191342)，在 **Assets** 中下载 `AmazonsDesktop.exe`，双击即可运行。程序已包含 Python、Tk 和 Pillow，开箱即用。
+
+人机或双引擎对局所需的引擎、模型及运行库由对应引擎提供，通过“加载引擎”选择可执行文件。
+
 ## 功能
 
 - 10×10 棋盘，合法落点提示、圆形棋子和箭标记。
