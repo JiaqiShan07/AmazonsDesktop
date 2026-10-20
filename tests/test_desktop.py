@@ -22,6 +22,19 @@ class Desktop(unittest.TestCase):
         self.click(3,0); self.assertEqual(len(a.game.history),0)
         a.cancel(); self.assertEqual(a.game.board[6][0],1)
         self.click(6,0);self.click(5,0);self.click(6,0)
+        self.assertEqual(a.draft_move,((6,0),(5,0),(6,0)))
+        self.assertEqual(a.game.board[6][0],1)
+        self.assertEqual(a.game.turn,1)
+        self.assertEqual(a.clock.active,1)
+        self.assertEqual(a.clock.history,[])
+        self.assertEqual(a.current_record().moves,[])
+        self.assertEqual(str(a.submit_button['state']),'normal')
+        a.undo();self.assertIsNone(a.draft_move)
+        self.assertEqual(a.game.history,[])
+        self.click(6,0);self.click(5,0);self.click(6,0)
+        a.toggle_pause();a.submit();self.assertEqual(a.game.history,[])
+        a.toggle_pause();a.submit()
+        self.assertIsNone(a.draft_move)
         self.assertEqual(a.game.board[6][0],2)
         self.assertEqual(a.game.turn,-1)
         a.undo();self.assertEqual(a.game.turn,1);self.assertEqual(a.game.board[6][0],1)
@@ -32,6 +45,31 @@ class Desktop(unittest.TestCase):
         self.assertEqual(a.timeout_winner,-1)
         self.click(6,0);self.assertIsNone(a.source)
         a.new();self.assertIsNone(a.timeout_winner)
+    def test_human_draft_notifies_engine_only_on_submit(self):
+        a=self.app
+        commands=[]
+        engine=SimpleNamespace(supports_undo=False, completed_turns=0,
+                               send=commands.append, close=lambda:None)
+        a.engines[-1]=engine
+        self.click(6,0);self.click(5,0);self.click(6,0)
+        self.assertEqual(commands,[])
+        self.assertEqual(a.pending,set())
+        a.undo();self.assertIsNone(a.draft_move)
+        self.assertEqual(commands,[])
+        self.click(6,0);self.click(5,0);self.click(6,0)
+        a.submit();a.submit()
+        self.assertEqual(commands,['move AGAFAG'])
+        self.assertEqual(a.pending,{-1})
+        self.assertEqual(engine.completed_turns,1)
+        self.assertEqual(a.clock.active,-1)
+        a.events.put((a.token,-1,'output','move ADAEAD'))
+        a.poll()
+        self.assertEqual(len(a.game.history),2)
+        self.assertIsNone(a.draft_move)
+        self.assertEqual(a.clock.active,1)
+        self.assertEqual(a.undo_count(),0)
+        engine.supports_undo=True
+        self.assertEqual(a.undo_count(),2)
     def test_engine_move_dispatch(self):
         a=self.app
         a.pending.add(1)

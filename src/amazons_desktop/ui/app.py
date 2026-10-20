@@ -33,6 +33,7 @@ class App:
         self.timeout_winner = None
         self.paused = False
         self.started = False
+        self.draft_move = None
         self.pending = set()
         self.initializing = set()
         self.undo_waiting = set()
@@ -89,7 +90,8 @@ class App:
         self.pause_button.pack(fill='x', pady=(0, 4))
         self.undo_button = ttk.Button(side, text='↶  悔棋', command=self.undo)
         self.undo_button.pack(fill='x', pady=4)
-        ttk.Button(side, text='取消选择 / Esc', command=self.cancel).pack(fill='x', pady=4)
+        self.submit_button = ttk.Button(side, text='提交走法', style='Accent.TButton', command=self.submit)
+        self.submit_button.pack(fill='x', pady=4)
         line = tk.Frame(side, bg=PANEL)
         line.pack(fill='x', pady=4)
         ttk.Button(line, text='保存 JSON', command=self.save).pack(side='left')
@@ -120,6 +122,7 @@ class App:
     def stop(self):
         self.pause_replay()
         self.started = False
+        self.draft_move = None
         self.token += 1
         for engine in self.engines.values():
             engine.close()
@@ -247,6 +250,7 @@ class App:
         if self.timeout_winner:
             return
         self.game.apply(move)
+        self.draft_move = None
         self.clock.finish_turn(self.game.turn)
         self.source = self.target = None
         self.write_log(f'{len(self.game.history):03}  {notation(move)}')
@@ -265,8 +269,13 @@ class App:
             self.fail(str(exc))
         self.refresh()
 
+    def submit(self):
+        if self.draft_move is None or not self.started or self.paused or self.error or self.timeout_winner:
+            return
+        self.commit(self.draft_move)
+
     def click(self, event):
-        if not self.started or self.replay or self.paused or self.timeout_winner or self.error or self.initializing or self.undo_waiting or self.game.turn in self.engines or self.game.winner():
+        if not self.started or self.draft_move is not None or self.replay or self.paused or self.timeout_winner or self.error or self.initializing or self.undo_waiting or self.game.turn in self.engines or self.game.winner():
             return
         c, r = int((event.x-self.ox)//self.cell), int((event.y-self.oy)//self.cell)
         if not (0 <= r < 10 and 0 <= c < 10):
@@ -275,7 +284,9 @@ class App:
         pos = (r, c)
         if self.target is not None:
             if pos in self.game.arrows(self.source, self.target):
-                self.commit((self.source, self.target, pos))
+                self.draft_move = (self.source, self.target, pos)
+                self.source = self.target = None
+                self.refresh()
                 return
         elif self.game.board[r][c] == self.game.turn:
             self.source = None if self.source == pos else pos
@@ -297,6 +308,8 @@ class App:
     def undo_count(self):
         if not self.started or self.replay or self.error or self.pending or self.initializing or self.undo_waiting:
             return 0
+        if self.draft_move is not None:
+            return 1
         # 引擎在超时后已关闭，重新开始才能恢复协议对局。
         if self.timeout_winner and any(self.paths.values()):
             return 0
@@ -308,6 +321,10 @@ class App:
     def undo(self):
         turns = self.undo_count()
         if not turns:
+            return
+        if self.draft_move is not None:
+            self.draft_move = None
+            self.refresh()
             return
         self.clock.pause()
         self.source = self.target = None
@@ -353,7 +370,10 @@ class App:
         self.pause_button.configure(state='disabled' if not self.started or self.replay or self.engines or winner or self.error else 'normal', text='继续对局' if self.paused else '暂停计时')
         self.status.configure(text=('黑方获胜' if winner == 1 else '白方获胜') if winner else name + '回合')
         self.phase.configure(text='正在同步悔棋…' if self.undo_waiting else '对手超时' if self.timeout_winner else '对局已暂停' if self.paused else '对手已无合法走法' if winner else '正在加载引擎…' if self.initializing else '引擎正在思考…' if self.game.turn in self.engines else '03 / 选择射箭位置' if self.target else '02 / 选择移动位置' if self.source else '01 / 选择一枚己方棋子')
-        self.undo_button.configure(state='normal' if self.undo_count() else 'disabled')
+        self.submit_button.configure(state='normal' if self.draft_move is not None and self.started and not self.paused and not self.error and not winner else 'disabled')
+        self.undo_button.configure(state='normal' if self.undo_count() else 'disabled', text='↶  撤回本步' if self.draft_move is not None else '↶  悔棋')
+        if self.draft_move is not None and not self.paused and not self.error:
+            self.phase.configure(text='04 / 确认走法后，点击“提交走法”')
         if not self.started and not winner and not self.replay:
             self.status.configure(text='准备对局')
             self.phase.configure(text='正在加载引擎…' if self.initializing else '双方就绪后，点击“开始对局”')
@@ -373,6 +393,8 @@ class App:
             self.feedback.configure(text='棋谱回放 · 拖动进度条跳转 · 从此处继续将重置双方计时', fg=MUTED)
         elif not self.started and not winner and not self.error:
             self.feedback.configure(text='准备对局 · 设置双方玩家、时限和对局信息 · 点击“开始对局”后开始计时', fg=MUTED)
+        elif self.draft_move is not None and not self.error:
+            self.feedback.configure(text='走法待提交 · 确认期间继续计算本方用时 · 可点击“撤回本步”重新落子', fg=MUTED)
         self.draw()
 
     def draw(self):
@@ -389,6 +411,11 @@ class App:
         board = self.game.preview(self.source, self.target) if self.target else self.game.board
         hints = self.game.arrows(self.source, self.target) if self.target else self.game.rays(self.source) if self.source else set()
         last = self.game.history[-1] if self.game.history else None
+        if self.draft_move is not None:
+            source, target, arrow = self.draft_move
+            board = self.game.preview(source, target)
+            board[arrow[0]][arrow[1]] = 2
+            last = self.draft_move
         for i in range(10):
             cv.create_text(self.ox+(i+.5)*s, self.oy-15, text=chr(97+i), fill=MUTED, font=('Segoe UI', 10))
             cv.create_text(self.ox-18, self.oy+(i+.5)*s, text=str(10-i), fill=MUTED, font=('Segoe UI', 10))
@@ -398,8 +425,9 @@ class App:
             source, target, arrow = [f'{chr(97+c)}{10-r}' for r, c in last]
             y = self.oy+10*s+16
             x = self.ox
-            side = '黑方' if len(self.game.history) % 2 else '白方'
-            cv.create_text(x, y, text=f'上手 · {side}', anchor='w', fill=MUTED, font=('Segoe UI', 10))
+            side = self.game.turn if self.draft_move is not None else -self.game.turn
+            caption = ('待提交' if self.draft_move is not None else '上手') + (' · 黑方' if side == 1 else ' · 白方')
+            cv.create_text(x, y, text=caption, anchor='w', fill=MUTED, font=('Segoe UI', 10))
             x += 94
             cv.create_line(x, y, x+25, y, fill=MOVE_COLOR, width=2, arrow='last')
             cv.create_text(x+33, y, text=f'移动 {source} → {target}', anchor='w', fill=MOVE_COLOR, font=('Segoe UI', 10))
